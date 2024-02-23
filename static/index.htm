@@ -1,0 +1,536 @@
+<html>
+
+<head>
+  <title>INFO4310 HW2 Interactive Soccer Visualization</title>
+
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/highlight.min.js"></script>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+  <style>
+    body {
+      background-color: #fffff2;
+      font-family: 'Franklin Gothic Medium';
+    }
+
+    .button {
+      padding: 14px 30px;
+      margin-left: 2.5;
+      margin-right: 2.5px;
+      text-decoration: none;
+      font-size: 18px;
+      font-family: 'Franklin Gothic Medium';
+      transition-duration: 0.3s;
+      cursor: pointer;
+      border-radius: 20px;
+    }
+
+    .b1 {
+      background-color: #fffff2;
+      border: 3.5px solid black;
+    }
+
+    .b1:hover {
+      background-color: black;
+      color: white;
+    }
+
+    /* "green", "red", "navy", "skyblue", "gold" */
+    .b2 {
+      background-color: #fffff2;
+      border: 3.5px solid green;
+    }
+
+    .b2:hover {
+      background-color: green;
+      color: white;
+    }
+
+    .b3 {
+      background-color: #fffff2;
+      border: 3.5px solid red;
+    }
+
+    .b3:hover {
+      background-color: red;
+      color: white;
+    }
+
+    .b4 {
+      background-color: #fffff2;
+      border: 3.5px solid navy;
+    }
+
+    .b4:hover {
+      background-color: navy;
+      color: white;
+    }
+
+    .b5 {
+      background-color: #fffff2;
+      border: 3.5px solid skyblue;
+    }
+
+    .b5:hover {
+      background-color: skyblue;
+      color: white;
+    }
+
+    .b6 {
+      background-color: #fffff2;
+      border: 3.5px solid gold;
+    }
+
+    .b6:hover {
+      background-color: gold;
+      color: white;
+    }
+
+    .gridlines line {
+      stroke: #bbb;
+    }
+
+    .gridlines .domain {
+      stroke: none;
+    }
+
+    #plot {
+      margin-left: auto;
+      margin-right: auto;
+      display: block;
+    }
+
+    h2,
+    h3,
+    p {
+      text-align: center;
+    }
+
+    p {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <p>
+    <img src="ayacuchoLogo.png" style="width: 70px; height: 80px;">
+    <img src="OlympiacosLogo.png" style="width: 70px; height: 80px;">
+    <img src="BordeauxLogo.png" style="width: 70px; height: 80px;">
+    <img src="BelenensesLogo.png" style="width: 70px; height: 80px;">
+    <img src="ShenzhenLogo.png" style="width: 70px; height: 80px;">
+  </p>
+  <h2>FIFA Football Club Player Ratings &amp; Value Across the Globe</h2>
+
+  <h3>Choose a Team:</h3>
+
+  <!-- "Ayacucho", "Olympiakos Piraeus", "Bordeaux", "Belenenses", "Shenzhen"-->
+  <div align="center">
+    <button class="button b1" id="Allteams" onclick="Allteams()">All Teams</button>
+    <button class="button b2" id="Ayacucho" onclick="Ayacucho()">Ayacucho (Peru)</button>
+    <button class="button b3" id="Olympiakos Piraeus" onclick="OlympiakosPiraeus()">Olympiakos Piraeus (Greece)</button>
+    <button class="button b4" id="Bordeaux" onclick="Bordeaux()">Bordeaux (France)</button>
+    <button class="button b5" id="Belenenses" onclick="Belenenses()">Belenenses (Portugal)</button>
+    <button class="button b6" id="Shenzhen" onclick="Shenzhen()">Shenzhen (China)</button>
+  </div>
+
+  <h3>
+    Player Value (€) VS. Overall Rating (hover a player to learn more)
+  </h3>
+
+  <svg id="plot" height="495" width="850">
+    <text id="name" x="850" y="0" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="team" x="850" y="20" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="value" x="850" y="40" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="rate" x="850" y="60" text-anchor="end" alignment-baseline="hanging"></text>
+  </svg>
+
+  <script>
+
+    // svg plot
+    const plot = d3.select("svg#plot");
+    const width = plot.attr("width");
+    const height = plot.attr("height");
+    const margin = { top: 45, right: 100, bottom: 50, left: 50 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    let annotation = plot.append("g").attr("id", "annotation");
+    let chartArea = plot.append("g").attr("id", "dots")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+
+    const requestData = async function () {
+      let data = await d3.csv("fifa_filtered.csv", d3.autoType)
+
+      
+      // x axis = Overall_Rating
+      const ratingExtent = d3.extent(data, d => d['Overall_Rating']);
+      const ratingScale = d3.scaleLinear().domain(ratingExtent).range([0, chartWidth]);
+      // y axis = Value_euros
+      const valueExtent = d3.extent(data, d => d['Value_euros']);
+      const valueScale = d3.scaleLog().domain(valueExtent).range([chartHeight, 0]);
+
+
+      // color scale
+      const teamScale = d3.scaleOrdinal()
+        .domain(["Ayacucho", "Olympiakos Piraeus", "Bordeaux", "Belenenses", "Shenzhen"])
+        .range(["green", "red", "navy", "skyblue", "gold"]);
+
+
+      // use tickformat on axes
+      // add x axis
+      let bottomAxis = d3.axisBottom(ratingScale)
+        .tickFormat(d3.format("~f"));
+      let bottomGridlines = d3.axisBottom(ratingScale)
+        .tickSize(-chartHeight - 10)
+        .tickFormat("")
+      annotation.append("g")
+        .attr("class", "xaxis")
+        .attr("transform", "translate(" + margin.left + "," + (chartHeight + margin.top + 10) + ")")
+        .call(bottomAxis);
+      annotation.append("g")
+        .attr("class", "x gridlines")
+        .attr("transform", "translate(" + margin.left + "," + (chartHeight + margin.top + 10) + ")")
+        .call(bottomGridlines);
+
+      // add y axis
+      let leftAxis = d3.axisLeft(valueScale)
+        .tickFormat(d3.format(".0s"))
+      let leftGridlines = d3.axisLeft(valueScale)
+        .tickSize(-chartWidth - 10)
+        .tickFormat("")
+      annotation.append("g")
+        .attr("class", "yaxis")
+        .attr("transform", "translate(" + (margin.left - 10) + "," + margin.top + ")")
+        .call(leftAxis)
+      annotation.append("g")
+        .attr("class", "y gridlines")
+        .attr("transform", "translate(" + (margin.left - 10) + "," + margin.top + ")")
+        .call(leftGridlines);
+
+
+      // populate plot with data
+      let circles = chartArea.selectAll("circle.dot").data(data)
+        .join(enter => enter.append("circle")
+          .attr("class", "dot")
+          .attr("opacity", 0.75)
+        )
+        .attr("cx", d => ratingScale(d['Overall_Rating']))
+        .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+        .attr("r", 6.5)
+        .attr("fill", d => teamScale(d['Team'])) // colored by team
+        .attr("name", d => d["Name"])
+        .attr("team", d => d["Team"])
+        .attr("rate", d => d["Overall_Rating"])
+        .attr("value", d => d["Value_euros"])
+
+        .on("mouseover", function (d) {
+          d3.select(this)
+            .transition().duration(150)
+            .attr("stroke", teamScale(d['Team']))
+            .attr("stroke-width", 8);
+
+          d3.select("#name").text(d['Name']);
+          d3.select("#team").text(d['Team']);
+          d3.select("#rate").text(d['Overall_Rating']);
+          d3.select("#value").text("€" + d['Value_euros']);
+        })
+        .on("mouseout", function (d) {
+          d3.select(this)
+            .transition().duration(150)
+            .attr("stroke", "")
+            .attr("stroke-width", 1)
+            .attr("fill", teamScale(d['Team']));
+
+          d3.select("#name").text("");
+          d3.select("#team").text("");
+          d3.select("#rate").text("");
+          d3.select("#value").text("");
+        });
+
+
+      // All Teams button 
+      var AllteamsButton = document.getElementById('Allteams');
+      AllteamsButton.onclick = function (d) {
+
+        let circles = chartArea.selectAll("circle.dot").data(data)
+          .join(enter => enter.append("circle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75))
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("fill", d => teamScale(d['Team']))
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("€" + d['Value_euros']);
+
+          })
+          .on("mouseout", function (d) {
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", d => teamScale(d['Team']));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+
+      // Ayacucho
+      var AyacuchoButton = document.getElementById('Ayacucho');
+      var Ayacuchofilt = data.filter(function (d) {
+        return d["Team"] === "Ayacucho"
+      })
+      AyacuchoButton.onclick = function (d) {
+        let circles = chartArea.selectAll("circle.dot").data(Ayacuchofilt)
+          .join(enter => enter.append("Ayacuchocircle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75),
+            exit => exit.attr("fill", d => teamScale(d['Team']))
+          )
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("$" + d['Value_euros']);
+
+          })
+          .on("mouseout", function (d) {
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", teamScale(d['team']));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+
+
+      // Olympiakos Piraeus
+      var OlympiakosPiraeusButton = document.getElementById('Olympiakos Piraeus');
+      var OlympiakosPiraeusfilt = data.filter(function (d) {
+        return d["Team"] === "Olympiakos Piraeus"
+      })
+      OlympiakosPiraeusButton.onclick = function (d) {
+        let circles = chartArea.selectAll("circle.dot").data(OlympiakosPiraeusfilt)
+          .join(enter => enter.append("circle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75),
+            update => update.attr("fill", d => teamScale(d['Team']))
+          )
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("fill", d => teamScale(d['Team'] = ["Olympiakos Piraeus"]))
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("$" + d['Value_euros']);
+          })
+          .on("mouseout", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", d => teamScale(d['Team'] = ["Olympiakos Piraeus"]));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+
+      // Bordeaux
+      var BordeauxButton = document.getElementById('Bordeaux');
+      var Bordeauxfilt = data.filter(function (d) {
+        return d["Team"] === "Bordeaux"
+      })
+      BordeauxButton.onclick = function (d) {
+        let circles = chartArea.selectAll("circle.dot").data(Bordeauxfilt)
+          .join(enter => enter.append("circle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75),
+            update => update.attr("fill", d => teamScale(d['Team']))
+          )
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("fill", d => teamScale(d['Team'] = ["Bordeaux"]))
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("$" + d['Value_euros']);
+          })
+          .on("mouseout", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", teamScale(d['Team']));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+
+
+      // Belenenses
+      var BelenensesButton = document.getElementById('Belenenses');
+      var Belenensesfilt = data.filter(function (d) {
+        return d["Team"] === "Belenenses"
+      })
+      BelenensesButton.onclick = function (d) {
+        let circles = chartArea.selectAll("circle.dot").data(Belenensesfilt)
+          .join(enter => enter.append("circle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75),
+            update => update.attr("fill", d => teamScale(d['Team']))
+          )
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("fill", d => teamScale(d['Team'] = ["Belenenses"]))
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("$" + d['Value_euros']);
+          })
+          .on("mouseout", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", teamScale(d['Team']));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+
+
+      // Shenzhen
+      var ShenzhenButton = document.getElementById('Shenzhen');
+      var Shenzhenfilt = data.filter(function (d) {
+        return d["Team"] === "Shenzhen"
+      })
+      ShenzhenButton.onclick = function (d) {
+        let circles = chartArea.selectAll("circle.dot").data(Shenzhenfilt)
+          .join(enter => enter.append("circle")
+            .attr("class", "dot")
+            .attr("opacity", 0.75),
+            update => update.attr("fill", d => teamScale(d['Team']))
+          )
+          .attr("cx", d => ratingScale(d['Overall_Rating']))
+          .attr("cy", d => valueScale(d['Value_euros'] + 0.5))
+          .attr("r", 6.5)
+          .attr("fill", d => teamScale(d['Team'] = ["Shenzhen"]))
+          .attr("name", d => d["Name"])
+          .attr("team", d => d["Team"])
+          .attr("rate", d => d["Overall_Rating"])
+          .attr("value", d => d["Value_euros"])
+          .on("mouseover", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", teamScale(d['Team']))
+              .attr("stroke-width", 8);
+
+            d3.select("#name").text(d['Name']);
+            d3.select("#team").text(d['Team']);
+            d3.select("#rate").text(d['Overall_Rating']);
+            d3.select("#value").text("$" + d['Value_euros']);
+          })
+          .on("mouseout", function (d) {
+
+            d3.select(this)
+              .transition().duration(150)
+              .attr("stroke", "")
+              .attr("stroke-width", 1)
+              .attr("fill", teamScale(d['Team']));
+
+            d3.select("#name").text("");
+            d3.select("#team").text("");
+            d3.select("#rate").text("");
+            d3.select("#value").text("");
+          });
+      }
+    }
+    requestData();
+
+  </script>
+</body>
+
+</html>
