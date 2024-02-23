@@ -138,10 +138,10 @@
   </h3>
 
   <svg id="plot" height="495" width="850">
-    <text id="name" x="850" y="0" text-anchor="end" alignment-baseline="hanging"></text>
-    <text id="team" x="850" y="20" text-anchor="end" alignment-baseline="hanging"></text>
-    <text id="value" x="850" y="40" text-anchor="end" alignment-baseline="hanging"></text>
-    <text id="rate" x="850" y="60" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="name" x="850" y="20" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="team" x="850" y="40" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="value" x="850" y="60" text-anchor="end" alignment-baseline="hanging"></text>
+    <text id="rate" x="850" y="80" text-anchor="end" alignment-baseline="hanging"></text>
   </svg>
 
   <script>
@@ -162,7 +162,7 @@
     const requestData = async function () {
       let data = await d3.csv("fifa_filtered.csv", d3.autoType)
 
-      
+
       // x axis = Overall_Rating
       const ratingExtent = d3.extent(data, d => d['Overall_Rating']);
       const ratingScale = d3.scaleLinear().domain(ratingExtent).range([0, chartWidth]);
